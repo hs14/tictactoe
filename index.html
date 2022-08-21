@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+        <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+        <link rel="stylesheet" href="base.css">
+    </head>
+    <body>
+        <div class="container">
+            <h class="title">最強の三目並べAI</h>
+            <div class="grid">
+                <div class="cell">
+                    <span id="pos-0-x" class="cross hidden">X</span>
+                    <span id="pos-0-o" class="circle hidden">O</span>
+                    <button id="pos-0-button" pys-onclick="lambda e: cell_click(0)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-1-x" class="cross hidden">X</span>
+                    <span id="pos-1-o" class="circle hidden">O</span>
+                    <button id="pos-1-button" pys-onclick="lambda e: cell_click(1)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-2-x" class="cross hidden">X</span>
+                    <span id="pos-2-o" class="circle hidden">O</span>
+                    <button id="pos-2-button" pys-onclick="lambda e: cell_click(2)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-3-x" class="cross hidden">X</span>
+                    <span id="pos-3-o" class="circle hidden">O</span>
+                    <button id="pos-3-button" pys-onclick="lambda e: cell_click(3)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-4-x" class="cross hidden">X</span>
+                    <span id="pos-4-o" class="circle hidden">O</span>
+                    <button id="pos-4-button" pys-onclick="lambda e: cell_click(4)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-5-x" class="cross hidden">X</span>
+                    <span id="pos-5-o" class="circle hidden">O</span>
+                    <button id="pos-5-button" pys-onclick="lambda e: cell_click(5)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-6-x" class="cross hidden">X</span>
+                    <span id="pos-6-o" class="circle hidden">O</span>
+                    <button id="pos-6-button" pys-onclick="lambda e: cell_click(6)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-7-x" class="cross hidden">X</span>
+                    <span id="pos-7-o" class="circle hidden">O</span>
+                    <button id="pos-7-button" pys-onclick="lambda e: cell_click(7)"></button>
+                </div>
+                <div class="cell">
+                    <span id="pos-8-x" class="cross hidden">X</span>
+                    <span id="pos-8-o" class="circle hidden">O</span>
+                    <button id="pos-8-button" pys-onclick="lambda e: cell_click(8)"></button>
+                </div>
+            </div>
+            
+            <h3 id="message"></h3>
+            <button id="reset-button" class="hidden" pys-onclick="lambda e: reset()">もう一度</button>
+        </div>
+
+<py-script>
+class Board:
+    '''
+    盤面を取り扱うクラス
+    '''
+
+    def __init__(self):
+        self.state   = [None] * 9     # 3×3のマスの状態
+        self.counter = 0              # どちらの手番かを表す (偶数か奇数かで判断する)
+        
+    def move(self, idx):
+        '''
+        手を打つ。
+        入力値が0-8の範囲の数値でない場合、または既に打たれた場所を指定した場合はFalseを返却する。
+        '''
+
+        # 入力値が0-8の範囲の数値でない場合
+        try:
+            idx = int(idx)
+            if idx < 0 or idx > 8:
+                return False
+        except ValueError:
+            return False
+
+        # 既に打たれた場所を指定した場合
+        if self.state[idx] is not None:
+            return False
+        
+        player = self.counter % 2
+        self.state[idx] = player
+
+        self.counter += 1
+        return True
+    
+
+    def unmove(self, idx):
+        '''
+        手を戻す。
+        '''
+        self.state[idx] = None
+        self.counter -= 1
+    
+
+    def has_won(self, player):
+        '''
+        プレイヤーが勝利したかどうかを判定する。
+        勝利している場合はTrue。
+        '''
+        return \
+            self.state[0] == self.state[1] == self.state[2] == player or \
+            self.state[3] == self.state[4] == self.state[5] == player or \
+            self.state[6] == self.state[7] == self.state[8] == player or \
+            self.state[0] == self.state[3] == self.state[6] == player or \
+            self.state[1] == self.state[4] == self.state[7] == player or \
+            self.state[2] == self.state[5] == self.state[8] == player or \
+            self.state[0] == self.state[4] == self.state[8] == player or \
+            self.state[2] == self.state[4] == self.state[6] == player
+    
+
+    def is_end(self):
+        '''
+        置く場所がなく終了したかどうかを判定する。
+        終了している場合はTrue。
+        '''
+        return None not in self.state
+    
+
+    def get_valid_moves(self):
+        '''
+        選択できる手を取得する。
+        '''
+        valid_moves = []
+        for idx, player in enumerate(self.state):
+            if player is None:
+                valid_moves.append(idx)
+        
+        return valid_moves
+
+    
+class BestPlayer:
+    '''
+    最前手を取り続けるプレイヤーを扱うクラス
+    '''
+
+    def __init__(self, player):
+        self.player = player
+    
+    def play(self, board):
+        score, idx = mini_max(board, self.player)
+        board.move(idx)
+        return idx
+
+    
+def mini_max(board, player):
+    '''
+    ミニマックス法に基づき、再帰的に呼び出して全可能性を探索し、(スコア, 最善手)を戻す。
+    スコアは、先手が勝利の場合1、後手が勝利の場合-1、それ以外の場合は0とする。
+    '''
+
+    # 先手(0)はスコア最大を目指す。後手(1)はスコア最小を目指す。
+    maximize_player = 0
+    minimize_player = 1
+
+    if board.has_won(maximize_player):
+        return (1, None)
+    elif board.has_won(minimize_player):
+        return (-1, None)
+    elif board.is_end():
+        return (0, None)
+    
+    opponent = 1 - player
+
+    if player == maximize_player:
+        max_score = -float('inf')
+        max_idx = None
+
+        for idx in board.get_valid_moves():
+            board.move(idx)
+            score, next_idx = mini_max(board, opponent)
+
+            if max_score < score:
+                max_score = score
+                max_idx = idx
+            
+            board.unmove(idx)
+        
+        return (max_score, max_idx)
+    
+    else:
+        min_score = float('inf')
+        min_idx = None
+
+        for idx in board.get_valid_moves():
+            board.move(idx)
+            score, next_idx = mini_max(board, opponent)
+
+            if min_score > score:
+                min_score = score
+                min_idx = idx
+            
+            board.unmove(idx)
+        
+        return (min_score, min_idx)
+
+    
+def update_cells(state):
+    '''
+    画面表示を最新の状態にする。
+    '''
+    for idx, value in enumerate(state):
+        Element(f"pos-{idx}-x").add_class("hidden")
+        Element(f"pos-{idx}-o").add_class("hidden")
+        if value == 0:
+            Element(f"pos-{idx}-x").remove_class("hidden")
+        if value == 1:
+            Element(f"pos-{idx}-o").remove_class("hidden")
+    
+    
+def display_message(value):
+    '''
+    メッセージを表示する。
+    '''
+    Element("message").write(value)
+
+    
+class GameManager:
+    '''
+    ゲームの進行を扱うクラス
+    '''
+
+    def __init__(self):
+        self.board = None
+        self.best_player = BestPlayer(1)
+        self.is_game_running = False
+        self.start()
+    
+    def start(self):
+        '''
+        ゲームをスタートさせる。
+        '''
+        self.board = Board()
+        self.is_game_running = True
+        display_message("あなたの番です")
+        update_cells(self.board.state)
+        Element("reset-button").add_class("hidden")
+    
+    def stop(self):
+        '''
+        ゲームを終了させる。
+        '''
+        self.is_game_running = False
+    
+    def resume(self):
+        '''
+        ゲームを再開する。
+        '''
+        self.is_game_running = True
+    
+    def human_play(self, idx):
+        '''
+        プレイヤーが打った手をもとに判定およびAIが対応する
+        '''
+        if not self.is_game_running:
+            return
+        
+        if self.board.move(idx):
+            update_cells(self.board.state)
+        
+        if self.board.has_won(0):
+            display_message('あなたの勝ち！')
+            self.is_game_running = False
+            Element("reset-button").remove_class("hidden")
+            return
+        elif self.board.is_end():
+            display_message('引き分け')
+            self.is_game_running = False
+            Element("reset-button").remove_class("hidden")
+            return
+
+        display_message('AIの番（考え中...)')
+        ai_idx = self.best_player.play(self.board)
+        update_cells(self.board.state)
+
+        if self.board.has_won(1):
+            display_message('AIの勝ち！')
+            self.is_game_running = False
+            Element("reset-button").remove_class("hidden")
+            return
+        
+        display_message('あなたの番です')
+
+game_manager = GameManager()    
+
+def cell_click(idx):
+    '''
+    人が手を打った際の動作を行う。
+    '''
+    game_manager.human_play(idx)
+
+
+def reset():
+    '''
+    盤面をリセットする。
+    '''
+    game_manager.start()   
+    
+</pt-script>
+    </body>
+</html>
